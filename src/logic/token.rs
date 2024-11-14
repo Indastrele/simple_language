@@ -9,6 +9,7 @@ pub struct Token {
     text: Option<String>,
 }
 
+#[allow(dead_code)]
 impl Token {
     pub fn new(token_type: TokenType, text: String) -> Token {
         Token {

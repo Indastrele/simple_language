@@ -1,6 +1,6 @@
 use crate::{token::Token, token_type::TokenType};
 
-use super::ast::expression::ExpressionType;
+use super::ast::{assignment_statement::AssignmentStatement, expression::ExpressionType};
 
 pub struct Parser {
     tokens: Option<Vec<Token>>,
@@ -17,14 +17,36 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Vec<ExpressionType> {
+    pub fn parse(&mut self) -> Vec<AssignmentStatement> {
         let mut result = Vec::new();
 
         while !self.compare(TokenType::EOF) {
-            result.push(self.expression().ok().unwrap())
+            result.push(self.statement().ok().unwrap())
         }
 
         result
+    }
+
+    fn statement(&mut self) -> Result<AssignmentStatement, &'static str> {
+        self.assignment_statement()
+    }
+
+    fn assignment_statement(&mut self) -> Result<AssignmentStatement, &'static str> {
+        let curr = self.get(0);
+        if self.compare(TokenType::WORD) && self.get(0).get_token_type() == TokenType::EQ {
+            let var = curr.clone().get_text();
+            let _ = self.consume(TokenType::EQ);
+            let statement = match self.expression() {
+                Ok(data) => data,
+                Err(e) => {
+                    println!("{e}");
+                    std::process::exit(-1);
+                }
+            };
+            return Ok(AssignmentStatement::new(var, statement));
+        }
+
+        Err("No such statement")
     }
 
     fn expression(&mut self) -> Result<ExpressionType, &'static str> {
@@ -112,13 +134,30 @@ impl Parser {
             });
         }
 
+        if self.compare(TokenType::WORD) {
+            return Ok(ExpressionType::Variable {
+                name: current.get_text(),
+            });
+        }
+
         if self.compare(TokenType::LPAREN) {
             let result = self.expression();
             self.compare(TokenType::RPAREN);
             return result;
         }
 
+        println!("Primary statement error: {}", current.clone());
         Err("")
+    }
+
+    fn consume(&mut self, token_type: TokenType) -> Result<Token, &'static str> {
+        let curr = self.get(0);
+        if token_type == curr.get_token_type() {
+            self.pos += 1;
+            return Ok(curr);
+        }
+
+        Err("No such token")
     }
 
     fn compare(&mut self, token_type: TokenType) -> bool {

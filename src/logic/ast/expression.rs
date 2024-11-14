@@ -1,6 +1,10 @@
+use crate::variables::variables::Variables;
+
 pub trait Expression {
-    fn eval(&self) -> f64;
+    fn eval(&self) -> Result<f64, &'static str>;
 }
+
+pub static mut VARIABLES: Option<Variables> = None;
 
 #[derive(Debug, Clone)]
 pub enum ExpressionType {
@@ -16,34 +20,59 @@ pub enum ExpressionType {
         first_expression: Box<ExpressionType>,
         second_expression: Box<ExpressionType>,
     },
+    Variable {
+        name: String,
+    },
 }
 
 impl Expression for ExpressionType {
-    fn eval(&self) -> f64 {
+    fn eval(&self) -> Result<f64, &'static str> {
         match self.clone() {
-            ExpressionType::Number { val } => val,
+            ExpressionType::Number { val } => Ok(val),
             ExpressionType::Unary {
                 operator,
                 expression,
             } => match operator {
-                '-' => -expression.eval(),
-                _ => expression.eval(),
+                '-' => Ok(-expression.eval().ok().unwrap()),
+                '+' => expression.eval(),
+                _ => Err("Unknwown symbol"),
             },
             ExpressionType::Binary {
                 operator,
                 first_expression,
                 second_expression,
-            } => match operator {
-                '-' => first_expression.eval() - second_expression.eval(),
-                '*' => first_expression.eval() * second_expression.eval(),
-                '/' => {
-                    if second_expression.eval() == 0_f64 {
-                        return f64::NAN;
+            } => {
+                let f_expr = match first_expression.eval() {
+                    Ok(val) => val,
+                    Err(e) => {
+                        println!("{}", e);
+                        std::process::exit(-1);
                     }
+                };
 
-                    first_expression.eval() / second_expression.eval()
+                let s_expr = match second_expression.eval() {
+                    Ok(val) => val,
+                    Err(e) => {
+                        println!("{}", e);
+                        std::process::exit(-1);
+                    }
+                };
+                match operator {
+                    '-' => Ok(f_expr - s_expr),
+                    '*' => Ok(f_expr * s_expr),
+                    '/' => {
+                        if s_expr == 0_f64 {
+                            return Ok(f64::NAN);
+                        }
+
+                        Ok(f_expr / s_expr)
+                    }
+                    '+' => Ok(f_expr + s_expr),
+                    _ => Err("Unknown symbol"),
                 }
-                _ => first_expression.eval() + second_expression.eval(),
+            }
+            ExpressionType::Variable { name } => unsafe {
+                Ok(VARIABLES.clone().unwrap().get(name))
             },
         }
     }
@@ -65,6 +94,9 @@ impl std::fmt::Display for ExpressionType {
                 first_expression,
                 second_expression,
             } => write!(f, "{} {} {}", first_expression, operator, second_expression),
+            ExpressionType::Variable { name } => unsafe {
+                write!(f, "{}", VARIABLES.clone().unwrap().get(name))
+            },
         }
     }
 }

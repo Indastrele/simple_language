@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cmp::Ordering, collections::HashMap};
 
 use crate::{token::Token, token_type::TokenType};
 
@@ -18,18 +18,19 @@ impl Lexer {
             length: input.len() as i32,
             pos: 0_i32,
             tokens: Vec::new(),
-            operators: HashMap::new(),
+            operators: HashMap::from([
+                ('+', TokenType::PLUS),
+                ('-', TokenType::MINUS),
+                ('*', TokenType::MUL),
+                ('/', TokenType::DIV),
+                ('(', TokenType::LPAREN),
+                (')', TokenType::RPAREN),
+                ('=', TokenType::EQ),
+            ]),
         }
     }
 
     pub fn tokenize(&mut self) -> Vec<Token> {
-        self.operators.insert('+', TokenType::PLUS);
-        self.operators.insert('-', TokenType::MINUS);
-        self.operators.insert('*', TokenType::MUL);
-        self.operators.insert('/', TokenType::DIV);
-        self.operators.insert('(', TokenType::LPAREN);
-        self.operators.insert(')', TokenType::RPAREN);
-
         while self.pos < self.length {
             let current: char = self.peek(0);
 
@@ -37,6 +38,8 @@ impl Lexer {
                 self.tokenize_number();
             } else if self.operators.contains_key(&current) {
                 self.tokenize_operator();
+            } else if current.is_alphabetic() {
+                self.tokenize_word();
             } else {
                 self.next();
             }
@@ -62,8 +65,18 @@ impl Lexer {
     fn tokenize_number(&mut self) {
         let mut buffer = String::new();
         let mut current: char = self.peek(0);
+        let mut is_float = false;
 
-        while current.is_digit(10) {
+        while current.is_digit(10) || current.cmp(&'.') == Ordering::Equal {
+            if current.cmp(&'.') == Ordering::Equal {
+                match is_float {
+                    true => {
+                        println!("Incorrect float number (there is 2 or more floating points)");
+                        std::process::exit(-1);
+                    }
+                    false => is_float = true,
+                }
+            }
             buffer += current.to_string().as_str();
             current = self.next();
         }
@@ -77,6 +90,21 @@ impl Lexer {
             Some(self.peek(0).to_string()),
         );
         self.next();
+    }
+
+    fn tokenize_word(&mut self) {
+        let mut buffer = String::new();
+        let mut curr = self.peek(0);
+
+        loop {
+            if !curr.is_alphanumeric() && curr != '_' && curr != '$' {
+                break;
+            }
+
+            buffer.push(curr);
+            curr = self.next();
+        }
+        self.add_token(&TokenType::WORD, Some(buffer));
     }
 
     fn add_token(&mut self, token_type: &TokenType, text: Option<String>) {
